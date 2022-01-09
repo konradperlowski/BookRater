@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Linq;
+using Microsoft.AspNetCore.Mvc;
 
 namespace BookRater.Controllers
 {
@@ -10,6 +11,7 @@ namespace BookRater.Controllers
 
     public class BookController : Controller
     {
+        private const string UserId = "1";
         private readonly ICosmosDbService _cosmosDbService;
         public BookController(ICosmosDbService cosmosDbService)
         {
@@ -41,6 +43,41 @@ namespace BookRater.Controllers
             }
 
             return View(book);
+        }
+
+        [HttpPost]
+        [ActionName("Rate")]
+        [ValidateAntiForgeryToken]
+        public async Task<ActionResult> RateAsync(string bookId, int rate)
+        {
+            var book = await _cosmosDbService.GetItemAsync(bookId);
+
+            var rateBook = new RateBook
+            {
+                UserId = UserId,
+                Rate = rate
+            };
+            if (book.Rates == null)
+                book.Rates = new[]
+                {
+                    rateBook
+                };
+            else
+            {
+                var userRated = book.Rates.Any(r => r.UserId == UserId);
+                if (userRated)
+                {
+                    book.Rates.First(r => r.UserId == UserId).Rate = rate;
+                }
+                else
+                {
+                    book.Rates = book.Rates.Append(rateBook).ToArray();
+                }
+            }
+            await _cosmosDbService.UpdateItemAsync(bookId, book);
+
+            TempData["RateMessage"] = "Your rate was submitted";
+            return RedirectToAction("Details", new { id = bookId });
         }
 
         [HttpPost]
@@ -103,7 +140,15 @@ namespace BookRater.Controllers
         [ActionName("Details")]
         public async Task<ActionResult> DetailsAsync(string id)
         {
-            return View(await _cosmosDbService.GetItemAsync(id));
+            var item = await _cosmosDbService.GetItemAsync(id);
+            var book = new BookWithRates
+            {
+                Book = item,
+                UserRate = item.Rates == null ? 0 : item.Rates.First(r => r.UserId == UserId).Rate,
+                AverageRate = item.Rates?.Average(r => r.Rate) ?? 0
+            };
+
+            return View(book);
         }
     }
 }
