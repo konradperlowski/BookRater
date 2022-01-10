@@ -53,6 +53,11 @@
             </dd>
         }
     </dl>
+    @{
+        var img = "https://bookraterblob.blob.core.windows.net/books/" + Model.Book.Id + ".jpg";
+    }
+    <img src="@Url.Content(img)" alt="Book cover">
+    <br/>
     <br/>
     <form asp-action="Rate">
         <div class="form-group">

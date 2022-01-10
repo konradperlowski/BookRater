@@ -1,4 +1,7 @@
-﻿namespace BookRater.Controllers
+﻿using System;
+using Azure.Storage.Blobs;
+
+namespace BookRater.Controllers
 {
     using System.Threading.Tasks;
     using Services;
@@ -9,6 +12,14 @@
     {
         private const string UserId = "1";
         private readonly ICosmosDbService cosmosDbService;
+        private static readonly BlobContainerClient BlobContainerClient = SetBlobContainerClient();
+
+        private static BlobContainerClient SetBlobContainerClient()
+        {
+            var connectionString = Environment.GetEnvironmentVariable("AZURE_STORAGE_CONNECTION_STRING");
+            var blobServiceClient = new BlobServiceClient(connectionString);
+            return blobServiceClient.GetBlobContainerClient("books");
+        }
 
         public BookController(ICosmosDbService cosmosDbService)
         {
@@ -30,12 +41,13 @@
         [HttpPost]
         [ActionName("Create")]
         [ValidateAntiForgeryToken]
-        public async Task<ActionResult> CreateAsync([Bind("Id,Title,Author")] Book book)
+        public async Task<ActionResult> CreateAsync([Bind("Title,Author,File")] BookWithCover bookWithCover)
         {
-            if (!ModelState.IsValid) return View(book);
+            if (!ModelState.IsValid) return View(bookWithCover);
+            var book = new Book(bookWithCover);
+            await BlobContainerClient.UploadBlobAsync(book.Id + ".jpg", bookWithCover.File.OpenReadStream());
             await cosmosDbService.AddItemAsync(book);
             return RedirectToAction("Index");
-
         }
 
         [HttpPost]
@@ -104,6 +116,7 @@
         [ValidateAntiForgeryToken]
         public async Task<ActionResult> DeleteConfirmedAsync([Bind("Id")] string id)
         {
+            await BlobContainerClient.DeleteBlobAsync(id + ".jpg");
             await cosmosDbService.DeleteItemAsync(id);
             return RedirectToAction("Index");
         }

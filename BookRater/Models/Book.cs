@@ -19,6 +19,13 @@ namespace BookRater.Models
         {
             Id = Guid.NewGuid().ToString();
         }
+
+        public Book(BookWithCover bookWithCover)
+        {
+            Id = Guid.NewGuid().ToString();
+            Title = bookWithCover.Title;
+            Author = bookWithCover.Author;
+        }
         
         public RateBook[] SaveOrUpdateRate(string userId, int rate)
         {
