@@ -1,4 +1,7 @@
-﻿namespace BookRater.Models
+﻿using System;
+using System.Linq;
+
+namespace BookRater.Models
 {
     using Newtonsoft.Json;
 
@@ -11,6 +14,40 @@
         [JsonProperty(PropertyName = "author")] public string Author { get; set; }
         
         [JsonProperty(PropertyName = "rates")] public RateBook[] Rates { get; set; }
+
+        public Book()
+        {
+            Id = Guid.NewGuid().ToString();
+        }
+        
+        public RateBook[] SaveOrUpdateRate(string userId, int rate)
+        {
+            var rateBook = new RateBook
+            {
+                UserId = userId,
+                Rate = rate
+            };
+            
+            if (Rates == null)
+                Rates = new[]
+                {
+                    rateBook
+                };
+            else
+            {
+                var userRated = Rates.Any(r => r.UserId == userId);
+                if (userRated)
+                {
+                    Rates.First(r => r.UserId == userId).Rate = rate;
+                }
+                else
+                {
+                    Rates = Rates.Append(rateBook).ToArray();
+                }
+            }
+
+            return Rates;
+        }
     }
 
     public class RateBook

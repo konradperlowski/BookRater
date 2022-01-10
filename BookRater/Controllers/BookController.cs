@@ -1,27 +1,24 @@
-﻿using System.Linq;
-using Microsoft.AspNetCore.Mvc;
-
-namespace BookRater.Controllers
+﻿namespace BookRater.Controllers
 {
-    using System;
     using System.Threading.Tasks;
-    using BookRater.Services;
+    using Services;
     using Microsoft.AspNetCore.Mvc;
-    using BookRater.Models;
+    using Models;
 
     public class BookController : Controller
     {
         private const string UserId = "1";
-        private readonly ICosmosDbService _cosmosDbService;
+        private readonly ICosmosDbService cosmosDbService;
+
         public BookController(ICosmosDbService cosmosDbService)
         {
-            _cosmosDbService = cosmosDbService;
+            this.cosmosDbService = cosmosDbService;
         }
 
         [ActionName("Index")]
         public async Task<IActionResult> Index()
         {
-            return View(await _cosmosDbService.GetItemsAsync("SELECT * FROM c"));
+            return View(await cosmosDbService.GetItemsAsync("SELECT * FROM c"));
         }
 
         [ActionName("Create")]
@@ -35,14 +32,10 @@ namespace BookRater.Controllers
         [ValidateAntiForgeryToken]
         public async Task<ActionResult> CreateAsync([Bind("Id,Title,Author")] Book book)
         {
-            if (ModelState.IsValid)
-            {
-                book.Id = Guid.NewGuid().ToString();
-                await _cosmosDbService.AddItemAsync(book);
-                return RedirectToAction("Index");
-            }
+            if (!ModelState.IsValid) return View(book);
+            await cosmosDbService.AddItemAsync(book);
+            return RedirectToAction("Index");
 
-            return View(book);
         }
 
         [HttpPost]
@@ -50,31 +43,9 @@ namespace BookRater.Controllers
         [ValidateAntiForgeryToken]
         public async Task<ActionResult> RateAsync(string bookId, int rate)
         {
-            var book = await _cosmosDbService.GetItemAsync(bookId);
-
-            var rateBook = new RateBook
-            {
-                UserId = UserId,
-                Rate = rate
-            };
-            if (book.Rates == null)
-                book.Rates = new[]
-                {
-                    rateBook
-                };
-            else
-            {
-                var userRated = book.Rates.Any(r => r.UserId == UserId);
-                if (userRated)
-                {
-                    book.Rates.First(r => r.UserId == UserId).Rate = rate;
-                }
-                else
-                {
-                    book.Rates = book.Rates.Append(rateBook).ToArray();
-                }
-            }
-            await _cosmosDbService.UpdateItemAsync(bookId, book);
+            var book = await cosmosDbService.GetItemAsync(bookId);
+            book.SaveOrUpdateRate(UserId, rate);
+            await cosmosDbService.UpdateItemAsync(bookId, book);
 
             TempData["RateMessage"] = "Your rate was submitted";
             return RedirectToAction("Details", new { id = bookId });
@@ -87,7 +58,7 @@ namespace BookRater.Controllers
         {
             if (ModelState.IsValid)
             {
-                await _cosmosDbService.UpdateItemAsync(book.Id, book);
+                await cosmosDbService.UpdateItemAsync(book.Id, book);
                 return RedirectToAction("Index");
             }
 
@@ -102,7 +73,7 @@ namespace BookRater.Controllers
                 return BadRequest();
             }
 
-            Book item = await _cosmosDbService.GetItemAsync(id);
+            Book item = await cosmosDbService.GetItemAsync(id);
             if (item == null)
             {
                 return NotFound();
@@ -119,7 +90,7 @@ namespace BookRater.Controllers
                 return BadRequest();
             }
 
-            Book book = await _cosmosDbService.GetItemAsync(id);
+            Book book = await cosmosDbService.GetItemAsync(id);
             if (book == null)
             {
                 return NotFound();
@@ -133,20 +104,15 @@ namespace BookRater.Controllers
         [ValidateAntiForgeryToken]
         public async Task<ActionResult> DeleteConfirmedAsync([Bind("Id")] string id)
         {
-            await _cosmosDbService.DeleteItemAsync(id);
+            await cosmosDbService.DeleteItemAsync(id);
             return RedirectToAction("Index");
         }
 
         [ActionName("Details")]
         public async Task<ActionResult> DetailsAsync(string id)
         {
-            var item = await _cosmosDbService.GetItemAsync(id);
-            var book = new BookWithRates
-            {
-                Book = item,
-                UserRate = item.Rates == null ? 0 : item.Rates.First(r => r.UserId == UserId).Rate,
-                AverageRate = item.Rates?.Average(r => r.Rate) ?? 0
-            };
+            var item = await cosmosDbService.GetItemAsync(id);
+            var book = new BookWithRates(item, UserId);
 
             return View(book);
         }
