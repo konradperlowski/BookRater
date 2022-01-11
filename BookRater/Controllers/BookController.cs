@@ -10,7 +10,6 @@ namespace BookRater.Controllers
 
     public class BookController : Controller
     {
-        private const string UserId = "1";
         private readonly ICosmosDbService cosmosDbService;
         private static readonly BlobContainerClient BlobContainerClient = SetBlobContainerClient();
 
@@ -56,7 +55,7 @@ namespace BookRater.Controllers
         public async Task<ActionResult> RateAsync(string bookId, int rate)
         {
             var book = await cosmosDbService.GetItemAsync(bookId);
-            book.SaveOrUpdateRate(UserId, rate);
+            book.SaveOrUpdateRate(HttpContext?.User.Identity?.Name, rate);
             await cosmosDbService.UpdateItemAsync(bookId, book);
 
             TempData["RateMessage"] = "Your rate was submitted";
@@ -125,7 +124,7 @@ namespace BookRater.Controllers
         public async Task<ActionResult> DetailsAsync(string id)
         {
             var item = await cosmosDbService.GetItemAsync(id);
-            var book = new BookWithRates(item, UserId);
+            var book = new BookWithRates(item, HttpContext?.User.Identity?.Name);
 
             return View(book);
         }
